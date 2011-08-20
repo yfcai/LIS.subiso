@@ -1,8 +1,9 @@
+import Control.Monad(mplus)
 import Data.Maybe(maybe, fromJust)
-import Data.List (sort)
+import Data.List(sort)
 
 endl = putStr "\n"
-main = endl >> print cube >> print cyc6
+main = endl >> print (subiso cyc6 cube)
 
 cube = make_graph v e where
    v = [0,1,2,3,4,5,6,7]
@@ -14,37 +15,6 @@ cyc6 = make_graph v e where
    e = [(0,1), (1,2), (2,3), (3,4), (4,5), (5,0)]
 
 
--- Vertex <content> <neighbours> <nonneighbours>
-data Vertex = Vertex Int [Vertex] [Vertex]
-type Graph  = [Vertex]
-
-instance Show Vertex where
- show (Vertex i xs _) = ' ' : show i ++ ": " ++
-  show (map (\(Vertex i _ _) -> i) xs) ++ "\n"
-
--- creates graph from list of vertices and list of edges
--- the integral identifiers are obligatory
--- we need a sorted list to achieve linear intersection time
-make_graph :: [Int] -> [(Int, Int)] -> Graph
-make_graph unsorted_vertices unsorted_edges = extract verts    where
- -- sorted vertices
- verts    = sort unsorted_vertices
- -- N_tree dictionary of vertices indexed by Int ID
- vtree    = foldr add_vertex (n_tree Nothing) verts            where
-            add_vertex i = update (Just (create i)) i
- -- N_tree of unsorted adjacency lists indexed by vertex ID
- u_adj    = foldr add_edge   (n_tree []     ) unsorted_edges   where
-            add_edge (i, j) = modify (j :) i . modify (i :) j
- -- N_tree of sorted adjacency/nonadjacency lists indexed by vertex ID
- etree    = foldr organise   (n_tree ([],[])) verts            where
-            organise i = update (neighbours, nonneighbs) i     where
-                         neighbours = sort (u_adj ! i)
-                         nonneighbs = minus verts neighbours
- create i = Vertex i (extract neighbours) (extract nonneighbs) where
-            (neighbours, nonneighbs) = etree ! i
- extract  = map (fromJust . (vtree !))
-
-
 -- Natural tree: a dictionary with members of [0, 1 ..] as key
 data N_tree a = N_tree a (N_tree a) (N_tree a)
 
@@ -53,7 +23,7 @@ n_tree x = let tree = N_tree x tree tree in tree
 
 -- dictionary ! key = value
 (!) :: (N_tree a) -> Int -> a
-(!) (N_tree x left right) i = case compare i 0 of
+(N_tree x left right) ! i = case compare i 0 of
  LT -> error "(!): negative key"
  EQ -> x
  GT -> (if odd i then left else right) ! j where j = div i 2
@@ -99,3 +69,67 @@ mergeWith fx fy lt eq gt = recurse where
            LT -> lt xs ys
            EQ -> eq xs ys
            GT -> gt xs ys
+
+
+-- Vertex <content> <neighbours> <nonneighbours>
+data Vertex = Vertex Int [Vertex] [Vertex]
+type Graph  = [Vertex]
+
+instance Show Vertex where
+ show (Vertex i xs _) = ' ' : show i ++ ": " ++
+  show (map (\(Vertex i _ _) -> i) xs) ++ "\n"
+
+-- this is a hack. TODO: amend isect and use isect_by instead
+-- also TODO: delete mergeWith, replace with custom, repeated code
+-- also TODO: rename Vertex to V and dispense with the nonneighbour list
+-- but first fix the weird bug. or maybe rewrite. yeah rewrite better.
+instance Eq Vertex where -- this is a hack.
+ (Vertex i _ _) == (Vertex j _ _) = i == j
+
+instance Ord Vertex where
+ compare (Vertex i _ _) (Vertex j _ _) = compare i j
+
+-- creates graph from list of vertices and list of edges
+-- the integral identifiers are obligatory
+-- we need a sorted list to achieve linear intersection time
+make_graph :: [Int] -> [(Int, Int)] -> Graph
+make_graph unsorted_vertices unsorted_edges = extract verts    where
+ -- sorted vertices
+ verts    = sort unsorted_vertices
+ -- N_tree dictionary of vertices indexed by Int ID
+ vtree    = foldr add_vertex (n_tree Nothing) verts            where
+            add_vertex i = update (Just (create i)) i
+ -- N_tree of unsorted adjacency lists indexed by vertex ID
+ u_adj    = foldr add_edge   (n_tree []     ) unsorted_edges   where
+            add_edge (i, j) = modify (j :) i . modify (i :) j
+ -- N_tree of sorted adjacency/nonadjacency lists indexed by vertex ID
+ etree    = foldr organise   (n_tree ([],[])) verts            where
+            organise i = update (neighbours, nonneighbs) i     where
+                         neighbours = sort (u_adj ! i)
+                         nonneighbs = minus verts neighbours
+ create i = Vertex i (extract neighbours) (extract nonneighbs) where
+            (neighbours, nonneighbs) = etree ! i
+ extract  = map (fromJust . (vtree !))
+
+
+-- given h and lists of candidates in g
+-- find an induced subgraph of g isomorphic to h if any
+isosub :: [Vertex] -> [[Vertex]] -> Maybe [Vertex]
+isosub _ ([]:_) = Nothing
+isosub _ (vs:[]) = Just [head vs]
+isosub aas@(Vertex a neibs_a _:as) ((v@(Vertex _ neibs_v nonbs_v):vs):vss)
+ = let
+ -- return a boolean list indicating
+ -- whether members of first argument are members of second argument
+ membership = mergeWith (const []) (const [])
+              (\xs ys -> False : membership (tail xs)       ys )
+              (\xs ys -> True  : membership (tail xs) (tail ys))
+              (\xs ys ->         membership       xs  (tail ys))
+ adj_to_a = membership as neibs_a
+ new_vss = zipWith (\adj vs -> isect vs (if adj then neibs_v else nonbs_v))
+           (membership as neibs_a) vss
+ in mplus ( isosub as new_vss >>= (Just . (v:)) ) (isosub aas (vs : vss))
+
+-- outputs induced subgraph of g isomorphic to h if any
+subiso :: Graph -> Graph -> Maybe [Vertex]
+subiso g h = isosub h (map (const g) h)
