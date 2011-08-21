@@ -49,16 +49,17 @@ update :: a -> Int -> (N_tree a) -> (N_tree a)
 update x = modify (const x)
 
 -- insert an entry into a sorted list
+-- identical to Data.List.Ordered.insertBagBy (data-ordlist-0.2)
 
 insert_by :: (a -> a -> Ordering) -> a -> [a] -> [a]
 insert_by cmp = loop where
  loop x [] = [x]
  loop x (y:ys) = case cmp x y of
-  LT -> x : y : ys
-  _ -> y : loop x ys
+  GT -> y : loop x ys
+  _ -> x : y : ys
 
 -- sorted list intersection
--- identical to Data.List.Ordered.isectBy (19 Aug 2011)
+-- identical to Data.List.Ordered.isectBy (data-ordlist-0.2)
 
 isect_by :: (a -> b -> Ordering) -> [a] -> [b] -> [a]
 isect_by cmp = loop where
@@ -70,7 +71,7 @@ isect_by cmp = loop where
   GT -> loop (x:xs) ys
 
 -- sorted list difference
--- identical to Data.List.Ordered.minusBy (19 Aug 2011) 
+-- identical to Data.List.Ordered.minusBy (data-ordlist-0.2) 
 
 minus_by :: (a -> b -> Ordering) -> [a] -> [b] -> [a]
 minus_by cmp = loop where
