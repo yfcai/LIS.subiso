@@ -8,7 +8,9 @@ import Data.List(sort)
 
 import Data.Char(isSpace)
 import Text.Parsec.String(Parser)
-import Text.Parsec
+import Text.Parsec(
+ (<|>), anyChar, anyToken, char, digit, eof, letter, lookAhead, many,
+  many1, manyTill, newline, parse, parseTest, satisfy, space, spaces)
 
 
 endl = putStr "\n"
@@ -154,25 +156,35 @@ isubiso _H _G = isosub _H (map (const _G) _H) where
     gminus candidates nonneibs_v
   in mplus (fmap (v:) (isosub as new_vss)) (isosub (a:as) (vs:vss))
 
--- my superfluous monadic shorthands
+-- my funky monadic shorthands
 
 -- like >>, but preserves first return value instead of second
+
 (=>>) :: Monad m => m a -> m b -> m a
 m1 =>> m2 = m1 >>= (m2 >>) . return
 
 -- equivalent to (liftM ++) m1 m2
+
 (++>>) :: Monad m => m String -> m String -> m String
 m1 ++>> m2 = m1 >>= \s -> m2 >>= return . (s ++)
 
+-- combine the results of two monads into a tuple!
+
+bind_couple :: Monad m => m a -> m b -> m (a, b)
+bind_couple m1 m2 = m1 >>= \x -> m2 >>= \y -> return (x, y)
+
+-- combine the results of three monads into a tuple!
+
+bind_triple :: Monad m => m a -> m b -> m c -> m (a, b, c)
+bind_triple m1 m2 m3 = m1 >>= \x->m2 >>= \y->m3 >>= \z->return (x,y,z)
+
 -- memory wipe: equivalent to m1 >> return ()
+
 forget :: Monad m => m a -> m ()
 forget m1 = m1 >> return ()
 
 -- read graph from file
 -- generate graph object and tikzpicture
-
-run :: Show a => Parser a -> String -> IO ()
-run = parseTest
 
 tokeniser :: Parser [String]
 tokeniser = meaningless >> many token where
@@ -187,4 +199,43 @@ tokeniser = meaningless >> many token where
  line             = manyTill anyChar eol
  eol              = empty_line <|> eof
 
-main = readFile "graphs/triangle" >>= run tokeniser
+-- a token describes either a vertex or an edge
+
+data Data = Vertex_data {tikz_name :: Int, tikz_loc, tikz_desc :: String}
+          | Edge_data {edge_generator :: String, edge_arguments :: [Int]}
+          deriving Show
+-- TODO: convert 'deriving Show' of previous line to tikz code generation
+
+-- have to roll my own C programmer's natural number parser
+
+natural :: Parser Int
+natural = spaces >> fmap read (many1 digit)
+
+vertex_data :: Parser Data
+vertex_data = fmap (\(name, loc, desc) -> Vertex_data name loc desc)
+ (bind_triple natural coordinates description) where
+ coordinates = spaces >> fmap (++ ")")
+  (lookAhead (char '(') >> manyTill anyChar (char ')'))
+ description = fmap (f . f) (many anyChar) where
+  f = reverse . dropWhile isSpace
+
+edge_data :: Parser Data
+edge_data = fmap (\(generator, arguments) -> Edge_data generator arguments)
+ (bind_couple (many letter) (many natural))
+
+-- using 'annotator' is as easy as 'tokeniser >>= annotator'!
+
+annotator :: [String] -> Parser [Data]
+annotator = mapM parse_string where
+ parse_string s = case parse (vertex_data <|> edge_data) "WoW" s of
+  Left krank -> fail ("parse error at " ++ show krank) -- TODO: FAIL??!!
+  Right rslt -> return rslt
+
+-- the last stage: code generation, or the meaning of words
+-- without which, what would government be?
+
+-- TODO: THINK ABOUT HOW TO GET RID OF THE PARSER BOX
+-- SURELY WE HAVE NO NEED OF IT IN CODE GENERATION
+
+
+main = readFile "graphs/triangle" >>= parseTest (tokeniser >>= annotator)
