@@ -1,10 +1,18 @@
+module ISubIso (Graph, Vertex, graph, isubiso) where
+
+{-# OPTIONS_GHC -package parsec #-} -- pragma must come after module lol!
+
 import Control.Monad(mplus)
 import Data.Maybe(maybe, fromJust)
 import Data.List(sort)
 
+import Data.Char(isSpace)
+import Text.Parsec.String(Parser)
+import Text.Parsec
+
 
 endl = putStr "\n"
-main = endl >> print (subiso _C6 cube) >> print (subiso cube _C6)
+-- main = endl >> print (isubiso _C6 cube) >> print (isubiso cube _C6)
 
 cube = graph _V _E where
  _V = [0,1,2,3,4,5,6,7]
@@ -16,7 +24,7 @@ _C6 = graph _V _E where
  _E = [(0,1), (1,2), (2,3), (3,4), (4,5), (5,0)]
 
 
--- Natural tree: a dictionary with members of [0, 1 ..] as key
+-- Natural tree 'N_tree' is a dictionary with 0, 1 .. as key
 
 data N_tree a = N_tree a (N_tree a) (N_tree a)
 
@@ -85,13 +93,15 @@ minus_by cmp = loop where
 minus :: Ord a => [a] -> [a] -> [a]
 minus = minus_by compare
 
--- V <int ID> <neighbours>
-
-data Vertex = V Int [Vertex]
+data Vertex = V { identifier :: Int, neighbourhood :: [Vertex] }
 type Graph = [Vertex]
 
 instance Show Vertex where
  show (V i xs) = '\n':' ':show i ++ ": " ++ show (map (\(V i _) -> i) xs)
+
+-- |@graph _V _E@ produces a graph whose vertices are @_V@ and edges are @_E@.
+-- Edges in @_E@ must be unique and unordered:
+-- if @(0, 1)@ is an element of @_E@ then @(1, 0)@ should not be.
 
 graph :: [Int] -> [(Int, Int)] -> Graph
 graph unsorted_vertices unsorted_edges = extract verts where
@@ -102,12 +112,6 @@ graph unsorted_vertices unsorted_edges = extract verts where
   add_edge (i, j) = modify (j :) i . modify (i :) j
  extract = map (fromJust . (vtree !))
  create i = V i (extract (sort (etree ! i)))
-
-neighbourhood :: Vertex -> [Vertex]
-neighbourhood (V _ vs) = vs
-
-identifier :: Vertex -> Int
-identifier (V i _) = i
 
 gcompare :: Vertex -> Vertex -> Ordering
 gcompare (V i _) (V j _) = compare i j
@@ -133,10 +137,11 @@ membership (x:xs) (y:ys) = case gcompare x y of
  EQ -> True : membership xs ys
  GT -> membership (x:xs) ys
 
--- outputs an induced subgraph of _G isomorphic to _H if exists
+-- |@isubiso _H _G@ produces the lexicographically minimum induced
+-- subgraph of @_G@ isomorphic to @_H@ if exists.
 
-subiso :: Graph -> Graph -> Maybe [Vertex]
-subiso _H _G = isosub _H (map (const _G) _H) where
+isubiso :: Graph -> Graph -> Maybe [Vertex]
+isubiso _H _G = isosub _H (map (const _G) _H) where
  isosub _ ([]:_) = Nothing
  isosub _ (gs:[]) = Just [head gs]
  isosub (a:as) ((v:vs):vss) = let
@@ -147,4 +152,42 @@ subiso _H _G = isosub _H (map (const _G) _H) where
    trim_candidates is_neighbour candidates = if is_neighbour then
     gisect candidates neibours_v else
     gminus candidates nonneibs_v
-  in mplus (isosub as new_vss >>= (Just . (v:))) (isosub (a:as) (vs:vss))
+  in mplus (fmap (v:) (isosub as new_vss)) (isosub (a:as) (vs:vss))
+
+-- read graph from file
+-- generate graph object and tikzpicture
+
+run :: Show a => Parser a -> String -> IO ()
+run = parseTest
+
+tokeniser :: Parser [String]
+tokeniser = many my_token
+
+my_token :: Parser String
+my_token = many (empty_line <|> comment) >> logical_line
+
+logical_line :: Parser String
+logical_line = starting_line >>= \s -> fmap (s ++) subsequent_lines
+
+starting_line :: Parser String
+starting_line = lookAhead (satisfy (not . isSpace)) >> line
+
+subsequent_lines :: Parser String
+subsequent_lines = fmap concat (many subsequent_line)
+
+subsequent_line :: Parser String
+subsequent_line = lookAhead space >> line
+
+comment :: Parser ()
+comment = char '#' >> line >> return ()
+
+empty_line :: Parser ()
+empty_line = newline >> return ()
+
+line :: Parser String
+line = manyTill anyChar eol
+
+eol :: Parser ()
+eol = (newline >> return ()) <|> eof
+
+main = readFile "graphs/triangle" >>= run tokeniser

@@ -1,0 +1,14 @@
+# graph = (vertex | edge)*
+# vertex = integer_id ( tikz_location ) tikz_label
+# edge = command integer_id*
+#
+# token = logical_line
+# logical_line = line where 1st char is nonblank
+#              + subsequent lines where 1st char is blank
+
+0 (90:1) v_0
+1 (210:1) v_1
+2 (330:1) v_2
+
+hp 0
+ 1 2
