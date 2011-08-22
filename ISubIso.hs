@@ -154,6 +154,20 @@ isubiso _H _G = isosub _H (map (const _G) _H) where
     gminus candidates nonneibs_v
   in mplus (fmap (v:) (isosub as new_vss)) (isosub (a:as) (vs:vss))
 
+-- my superfluous monadic shorthands
+
+-- like >>, but preserves first return value instead of second
+(=>>) :: Monad m => m a -> m b -> m a
+m1 =>> m2 = m1 >>= (m2 >>) . return
+
+-- equivalent to (liftM ++) m1 m2
+(++>>) :: Monad m => m String -> m String -> m String
+m1 ++>> m2 = m1 >>= \s -> m2 >>= return . (s ++)
+
+-- memory wipe: equivalent to m1 >> return ()
+forget :: Monad m => m a -> m ()
+forget m1 = m1 >> return ()
+
 -- read graph from file
 -- generate graph object and tikzpicture
 
@@ -161,33 +175,16 @@ run :: Show a => Parser a -> String -> IO ()
 run = parseTest
 
 tokeniser :: Parser [String]
-tokeniser = many my_token
-
-my_token :: Parser String
-my_token = many (empty_line <|> comment) >> logical_line
-
-logical_line :: Parser String
-logical_line = starting_line >>= \s -> fmap (s ++) subsequent_lines
-
-starting_line :: Parser String
-starting_line = lookAhead (satisfy (not . isSpace)) >> line
-
-subsequent_lines :: Parser String
-subsequent_lines = fmap concat (many subsequent_line)
-
-subsequent_line :: Parser String
-subsequent_line = lookAhead space >> line
-
-comment :: Parser ()
-comment = char '#' >> line >> return ()
-
-empty_line :: Parser ()
-empty_line = newline >> return ()
-
-line :: Parser String
-line = manyTill anyChar eol
-
-eol :: Parser ()
-eol = (newline >> return ()) <|> eof
+tokeniser = meaningless >> many token where
+ token            = logical_line =>> meaningless
+ logical_line     = starting_line ++>> subsequent_lines
+ starting_line    = lookAhead (satisfy (not . isSpace)) >> line
+ subsequent_lines = fmap concat (many subsequent_line)
+ subsequent_line  = lookAhead space >> line
+ meaningless      = many (comment <|> empty_line)
+ comment          = forget (char '#' >> line)
+ empty_line       = forget newline
+ line             = manyTill anyChar eol
+ eol              = empty_line <|> eof
 
 main = readFile "graphs/triangle" >>= run tokeniser
