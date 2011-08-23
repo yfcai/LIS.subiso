@@ -1,4 +1,4 @@
-module ISubIso (Graph, Vertex, file_to_graph, graph, isubiso,
+module ISubIso (Graph, Vertex, file_to_graph, file_to_tikz, graph, isubiso,
  bind_couple, identifier) where
 
 {-# OPTIONS_GHC -package parsec #-} -- pragma must come after module lol!
@@ -268,13 +268,23 @@ read_graph = let
  nub2 (xs, ys) = (nub xs, nub ys)
  in nub2 . rough_read
 
+-- helpers to the two file_to_* functions
+
+parse_it :: Monad m => String -> Parser a -> String -> m a
+parse_it file_name parser input = case parse parser file_name input of
+ Left er -> fail ("error at " ++ show er)
+ Right x -> return x
+
+file_to :: ([Data] -> a) -> String -> IO a
+file_to conversion file_name = readFile file_name
+ >>= parse_it file_name (fmap conversion (tokeniser >>= annotator))
+
 -- read file, decode tikz and construct graph object
 
 file_to_graph :: String -> IO Graph
-file_to_graph file_name = let
- parse_it file_name parser input = case parse parser file_name input of
-  Left er -> fail ("error at " ++ show er)
-  Right x -> return x
- create = uncurry graph . read_graph
- in readFile file_name
- >>= parse_it file_name (fmap create (tokeniser >>= annotator))
+file_to_graph = file_to (uncurry graph . read_graph)
+
+-- read file and piece together some tikz code
+
+file_to_tikz :: String -> IO String
+file_to_tikz = file_to (concatMap show)

@@ -2,6 +2,14 @@
 # vertex = integer_id ( tikz_location ) tikz_label
 # edge = command integer_id*
 #
+#
+# edge commands and their meanings are:
+#
+#  c  cycle
+#  e  edges
+#  k  clique
+#  w  walk
+#
 # token = logical_line
 # logical_line = line where 1st char is nonblank
 #              + subsequent lines where 1st char is blank
@@ -10,6 +18,6 @@
 1 (210:1) v_1
 2 (330:1) v_2
 
-k 0 1 2
+c 0 1 2
 
 # end of triangle
