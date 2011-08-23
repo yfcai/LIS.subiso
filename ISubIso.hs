@@ -1,4 +1,5 @@
-module ISubIso (Graph, Vertex, graph, isubiso) where
+module ISubIso (Graph, Vertex, file_to_graph, graph, isubiso,
+ bind_couple, identifier) where
 
 {-# OPTIONS_GHC -package parsec #-} -- pragma must come after module lol!
 
@@ -11,19 +12,6 @@ import Text.Parsec.String(Parser)
 import Text.Parsec(
  (<|>), anyChar, anyToken, char, digit, eof, letter, lookAhead, many,
   many1, manyTill, newline, parse, parseTest, satisfy, space, spaces)
-
-
-endl = putStr "\n"
--- main = endl >> print (isubiso _C6 cube) >> print (isubiso cube _C6)
-
-cube = graph _V _E where
- _V = [0,1,2,3,4,5,6,7]
- _E = [(0,1), (0,2), (0,4), (1,3), (1,5), (2,3),
-        (2,6), (3,7), (4,5), (4,6), (5,7), (6,7)]
-
-_C6 = graph _V _E where
- _V = [0,1,2,3,4,5]
- _E = [(0,1), (1,2), (2,3), (3,4), (4,5), (5,0)]
 
 
 -- Natural tree 'N_tree' is a dictionary with 0, 1 .. as key
@@ -207,21 +195,22 @@ data Data = Vertex_data {tikz_name :: Int, tikz_loc, tikz_desc :: String}
 -- have to roll my own C programmer's natural number parser
 
 natural :: Parser Int
-natural = spaces >> fmap read (many1 digit)
+natural = fmap read (many1 digit) =>> spaces
 
 vertex_data :: Parser Data
 vertex_data = fmap (\(name, loc, desc) -> Vertex_data name loc desc)
  (bind_triple natural coordinates description) where
- coordinates = spaces >> fmap (++ ")")
-  (lookAhead (char '(') >> manyTill anyChar (char ')'))
+ coordinates = fmap (++ ")")
+  (lookAhead (char '(') >> manyTill anyChar (char ')')) =>> spaces
  description = fmap (f . f) (many anyChar) where
   f = reverse . dropWhile isSpace
 
 edge_data :: Parser Data
 edge_data = fmap (\(generator, arguments) -> Edge_data generator arguments)
- (bind_couple (many letter) (many natural))
+ (bind_couple (many1 letter =>> spaces) (many natural))
 
 -- using 'annotator' is as easy as 'tokeniser >>= annotator'!
+-- TODO: de-uglify me!
 
 annotator :: [String] -> Parser [Data]
 annotator = mapM parse_string where
@@ -281,14 +270,11 @@ read_graph = let
 
 -- read file, decode tikz and construct graph object
 
-from_file :: String -> IO (Graph, String)
-from_file file_name = let
+file_to_graph :: String -> IO Graph
+file_to_graph file_name = let
  parse_it file_name parser input = case parse parser file_name input of
   Left er -> fail ("error at " ++ show er)
   Right x -> return x
- create _data = ((uncurry graph) (read_graph _data), concatMap show _data)
+ create = uncurry graph . read_graph
  in readFile file_name
  >>= parse_it file_name (fmap create (tokeniser >>= annotator))
-
-
-main = from_file "graphs/triangle" >>= print
