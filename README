@@ -8,5 +8,5 @@ To use:
 
 2. `make && cd graphs`
 
-3. `./isubiso C6 cube` to see an induced C6 in the cube.
-   `./tikz triangle` to generate tikzcode that draws the triangle.
+3. `../bin/isubiso C6 cube` to see an induced C6 in the cube.
+   `../bin/tikz triangle` to generate tikzcode that draws the triangle.
