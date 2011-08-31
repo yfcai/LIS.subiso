@@ -28,7 +28,7 @@ n_tree x = let tree = N_tree x tree tree in tree
 (N_tree x left right) ! i = case compare i 0 of
  LT -> error "(!): negative key"
  EQ -> x
- GT -> (if odd i then left else right) ! j where j = div i 2
+ GT -> (if odd i then left else right) ! (div i 2)
 
 -- modify a single entry of N_tree through a function f
 
@@ -37,9 +37,9 @@ modify f = g where
  g i (N_tree x left right) = let j = div i 2 in case compare i 0 of
   LT -> error "modify: negative key"
   EQ -> N_tree (f x) left right
-  GT -> if odd i then
-   N_tree x (g j left) right else
-   N_tree x left (g j right)
+  GT -> if odd i
+   then N_tree x (g j left) right
+   else N_tree x left (g j right)
 
 -- replace a single entry with new value x
 
@@ -139,9 +139,9 @@ isubiso _H _G = isosub _H (map (const _G) _H) where
   new_vss = zipWith trim_candidates adjacency_to_a vss where
    neibours_v = neighbourhood v
    nonneibs_v = ginsert v neibours_v
-   trim_candidates is_neighbour candidates = if is_neighbour then
-    gisect candidates neibours_v else
-    gminus candidates nonneibs_v
+   trim_candidates is_neighbour candidates = if is_neighbour
+    then gisect candidates neibours_v
+    else gminus candidates nonneibs_v
   in mplus (fmap (v:) (isosub as new_vss)) (isosub (a:as) (vs:vss))
 
 -- my funky monadic shorthands
@@ -227,8 +227,8 @@ instance Show Data where
  show graph_data = let
   ref name = "(" ++ show name ++ ")"
   draw sth = "\n\\draw" ++ sth ++ ";"
-  walk ns = if null ns then
-   [] else ref (head ns) ++ ( (tail ns) >>= ("--" ++) . ref)
+  walk ns = if null ns then []
+   else ref (head ns) ++ ( (tail ns) >>= ("--" ++) . ref)
   edge_to_tikz (x, y) = ref x ++ "--" ++ ref y
   in
   case graph_data of
