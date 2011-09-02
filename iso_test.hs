@@ -1,7 +1,7 @@
 import System.Environment(getArgs)
 import Data.List(intersperse)
 import FunkyMonadics(bind_couple)
-import ISubIso(isub)
+import ISubIso(isub, identifier)
 import ReadGraph(file_to_graph)
 
 main = getArgs
