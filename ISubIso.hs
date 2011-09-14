@@ -1,6 +1,6 @@
 module ISubIso (
  Graph, Vertex,
- graph, isub, isub_list,
+ graph, isub, isub_list, isub_uniq,
  identifier, neighbourhood
  ) where
 
@@ -174,3 +174,19 @@ isub_list _H _G = isub_c _H (map (const _G) _H)
 
 isub :: Graph -> Graph -> Maybe [Vertex]
 isub _H _G = listToMaybe (isub_list _H _G)
+
+-- |@isub_uniq _H _G@ produces a list of induced subgraph isomorphisms
+-- from @_H@ to @_G@ that includes, from each group of automorphic
+-- subgraphs, only the lexicographically minimum as representative.
+-- Semantically, @isub_uniq _H _G = nub_as_sets (isub_list _H _G)@
+
+isub_uniq :: Graph -> Graph -> [[Vertex]]
+isub_uniq = ((.)(.)(.)) nub_as_sets isub_list -- Eccentrica Gallumbits!
+
+nub_as_sets :: [[Vertex]] -> [[Vertex]]
+nub_as_sets = accumulate [] where
+ accumulate ss [] = []
+ accumulate ss (x:xs) = let
+  sx = sort (map identifier x) in if elem sx ss
+  then accumulate ss xs
+  else x : accumulate (sx:ss) xs
